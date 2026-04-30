@@ -7,6 +7,9 @@ type Player = {
   id: string;
   x: number;
   y: number;
+  health: number;
+  score: number;
+  isAlive: boolean
 };
 
 type Projectile = {
@@ -15,9 +18,16 @@ type Projectile = {
   y: number;
 };
 
+type Enemy = {
+  id: number;
+  x: number;
+  y: number;
+};
+
 export default function App() {
   const [players, setPlayers] = useState<Record<string, Player>>({})
   const [projectiles, setProjectiles] = useState<Record<number, Projectile>>({});
+  const [enemies, setEnemies] = useState<Record<number, Enemy>>({});
 
   useEffect(() => {
     socket.on("connect", () => {
@@ -27,6 +37,10 @@ export default function App() {
     socket.on("updatePlayers", (serverPlayers) => {
       // console.log("Players:", serverPlayers);
       setPlayers(serverPlayers);
+    });
+
+    socket.on("updateEnemies", (serverEnemies) => {
+      setEnemies(serverEnemies);
     });
 
     socket.on("disconnect", () => {
@@ -59,6 +73,7 @@ export default function App() {
     return () => {
       socket.off("updatePlayers");
       socket.off("updateProjectiles");
+      socket.off("updateEnemies");
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("click", handleClick);
     };
@@ -70,17 +85,35 @@ export default function App() {
 
       {/* Game Arena */}
       <div className="relative w-150 h-100 border border-gray-600 bg-black overflow-hidden">
-        {Object.values(players).map((player) => (
-          <div
-            key={player.id}
-            className={`absolute w-5 h-5 rounded-full ${player.id === socket.id ? "bg-green-400" : "bg-red-400"
-              }`}
-            style={{
-              left: player.x,
-              top: player.y,
-            }}
-          />
-        ))}
+        {
+          Object.values(players)
+            .filter(player => player.isAlive)
+            .map((player) => (
+              <div
+                key={player.id}
+                className={"absolute flex flex-col items-center"}
+                style={{
+                  left: player.x,
+                  top: player.y,
+                }}
+              >
+                {/* Player */}
+                <div
+                  className={`w-5 h-5 rounded-full 
+                    ${player.id === socket.id ? "bg-green-400" : "bg-red-400"}`
+                  }
+                />
+
+                {/* Health bar */}
+                <div className="w-10 h-1 bg-gray-700 mt-1">
+                  <div
+                    className="h-full bg-green-400"
+                    style={{ width: `${player.health}%` }}
+                  />
+                </div>
+              </div>
+            ))
+        }
 
         {Object.values(projectiles).map((p) => (
           <div
@@ -92,6 +125,30 @@ export default function App() {
             }}
           />
         ))}
+
+        {Object.values(enemies).map((enemy) => (
+          <div
+            key={enemy.id}
+            className="absolute w-5 h-5 bg-purple-400 rounded-full"
+            style={{
+              left: enemy.x,
+              top: enemy.y,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="mt-6 w-75">
+        <h3 className="text-lg font-semibold mb-2">Leaderboard</h3>
+
+        {Object.values(players)
+          .sort((a, b) => b.score - a.score)
+          .map((p) => (
+            <div key={p.id} className="flex justify-between text-sm">
+              <span>{p.id.slice(0, 4)}</span>
+              <span>{p.score}</span>
+            </div>
+          ))}
       </div>
 
       {/* Debug Info (temporary) */}
