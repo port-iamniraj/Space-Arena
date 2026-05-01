@@ -10,6 +10,8 @@ type Player = {
     health: number;
     score: number;
     isAlive: boolean;
+    dx: number;
+    dy: number;
 };
 
 type Projectile = {
@@ -24,14 +26,6 @@ type Projectile = {
     ownerId: string;
 };
 
-type Enemy = {
-    id: number;
-    x: number;
-    y: number;
-    radius: number;
-    speed: number;
-};
-
 const app = express();
 const server = http.createServer(app);
 
@@ -44,9 +38,8 @@ const io = new Server(server, {
 const players: Record<string, Player> = {};
 const projectiles: Record<number, Projectile> = {};
 let projectileId = 0;
-
-const enemies: Record<number, Enemy> = {};
-let enemyId = 0;
+const MAP_WIDTH = 3000;
+const MAP_HEIGHT = 3000;
 
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -56,10 +49,12 @@ io.on("connection", (socket) => {
         id: socket.id,
         x: Math.random() * 500,
         y: Math.random() * 500,
-        radius: 10,
+        radius: 16,
         health: 100,
         score: 0,
-        isAlive: true
+        isAlive: true,
+        dx: 0,
+        dy: 0,
     };
 
     io.emit("updatePlayers", players); // sending all players to everyone
@@ -73,41 +68,30 @@ io.on("connection", (socket) => {
     });
 
     // player movement
-    socket.on("move", (direction: "up" | "down" | "left" | "right") => {
+    socket.on("move", (direction: { dx: number; dy: number }) => {
         const player = players[socket.id];
-
         if (!player || !player.isAlive) return;
 
-        const speed = 5;
-
-        if (direction === "up") player.y -= speed;
-        if (direction === "down") player.y += speed;
-        if (direction === "left") player.x -= speed;
-        if (direction === "right") player.x += speed;
-
-        // send updated players to everyone
-        io.emit("updatePlayers", players);
+        player.dx = direction.dx;
+        player.dy = direction.dy;
     });
 
     // player shooting
-    socket.on("shoot", ({ x, y }: { x: number; y: number }) => {
+    socket.on("shoot", ({ dx, dy }: { dx: number; dy: number }) => {
         const player = players[socket.id];
         if (!player || !player.isAlive) return;
 
-        const angle = Math.atan2(y - player.y, x - player.x);
-
         const speed = 5;
-        const projectileRadius = 5
+        const projectileRadius = 5;
 
-        // projectile spawning
         projectiles[projectileId] = {
             id: projectileId,
-            x: player.x + Math.cos(angle) * 10,
-            y: player.y + Math.sin(angle) * 10,
+            x: player.x + dx * 10,
+            y: player.y + dy * 10,
             radius: projectileRadius,
             velocity: {
-                x: Math.cos(angle) * speed,
-                y: Math.sin(angle) * speed,
+                x: dx * speed,
+                y: dy * speed,
             },
             ownerId: socket.id,
         };
@@ -117,6 +101,30 @@ io.on("connection", (socket) => {
 });
 
 setInterval(() => {
+    for (const playerId in players) {
+        const player = players[playerId];
+
+        if (!player.isAlive) continue;
+
+        const speed = 50;
+
+        player.x += player.dx * speed;
+        player.y += player.dy * speed;
+
+        const PLAYER_RADIUS = player.radius || 10;
+
+        // 🔥 Clamp player inside world
+        player.x = Math.max(
+            PLAYER_RADIUS,
+            Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x)
+        );
+
+        player.y = Math.max(
+            PLAYER_RADIUS,
+            Math.min(MAP_HEIGHT - PLAYER_RADIUS, player.y)
+        );
+    }
+
     // projectile movement and collision
     for (const id in projectiles) {
         const projectile = projectiles[id];
@@ -146,94 +154,14 @@ setInterval(() => {
             }
         }
 
-        for (const enemyId of Object.keys(enemies)) {
-            const enemy = enemies[Number(enemyId)];
-
-            const dist = Math.hypot(
-                projectile.x - enemy.x,
-                projectile.y - enemy.y
-            );
-
-            if (dist < projectile.radius + enemy.radius) {
-                delete enemies[Number(enemyId)]; // enemy hit
-
-                delete projectiles[id]; // remove projectile
-
-                // give score to shooter
-                const shooter = players[projectile.ownerId];
-                if (shooter && shooter.isAlive) {
-                    shooter.score += 1;
-                }
-
-                break;
-            }
-        }
-
         // remove if out of bounds
         if (
             projectile.x < 0 ||
-            projectile.x > 600 ||
+            projectile.x > MAP_WIDTH ||
             projectile.y < 0 ||
-            projectile.y > 400
+            projectile.y > MAP_HEIGHT
         ) {
             delete projectiles[id];
-        }
-    }
-
-    // enemy movement and collision
-    for (const id of Object.keys(enemies)) {
-        const enemyId = Number(id);
-        const enemy = enemies[enemyId];
-
-        // find closest player
-        let closestPlayer: Player | null = null;
-        let minDist = Infinity;
-
-        for (const playerId in players) {
-            const player = players[playerId];
-
-            if (!player.isAlive) continue;
-
-            const dist = Math.hypot(
-                player.x - enemy.x,
-                player.y - enemy.y
-            );
-
-            if (dist < minDist) {
-                minDist = dist;
-                closestPlayer = player;
-            }
-        }
-
-        if (!closestPlayer) continue;
-
-        const angle = Math.atan2(
-            closestPlayer.y - enemy.y,
-            closestPlayer.x - enemy.x
-        );
-
-        enemy.x += Math.cos(angle) * enemy.speed;
-        enemy.y += Math.sin(angle) * enemy.speed;
-
-        // collision
-        for (const playerId in players) {
-            const player = players[playerId];
-
-            if (!player.isAlive) continue;
-
-            const dist = Math.hypot(
-                enemy.x - player.x,
-                enemy.y - player.y
-            );
-
-            if (dist < enemy.radius + player.radius) {
-                player.health -= 20;
-                player.health = Math.max(player.health, 0);
-
-                delete enemies[enemyId]; // removing enemy after hit
-
-                break; // stop checking this enemy
-            }
         }
     }
 
@@ -256,25 +184,7 @@ setInterval(() => {
 
     io.emit("updatePlayers", players);
     io.emit("updateProjectiles", projectiles);
-    io.emit("updateEnemies", enemies);
 }, 50);
-
-setInterval(() => {
-    const radius = 10;
-
-    const x = Math.random() * 600;
-    const y = Math.random() * 400;
-
-    enemies[enemyId] = {
-        id: enemyId,
-        x,
-        y,
-        radius,
-        speed: 1,
-    };
-
-    enemyId++;
-}, 2000);
 
 server.listen(3000, () => {
     console.log("Server running on port 3000");
