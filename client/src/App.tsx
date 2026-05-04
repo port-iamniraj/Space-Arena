@@ -8,13 +8,22 @@ type Player = {
   y: number;
   health: number;
   score: number;
-  isAlive: boolean
+  isAlive: boolean;
 };
 
 type Projectile = {
   id: number;
   x: number;
   y: number;
+};
+
+type Collectible = {
+  id: number;
+  x: number;
+  y: number;
+  value: number;
+  size: number;
+  color: string
 };
 
 const GAME_CONFIG = {
@@ -85,12 +94,21 @@ function getMinimapPosition(x: number, y: number) {
   return { miniX, miniY };
 }
 
+function getMyPlayer(
+  socket: Socket | null,
+  players: Record<string, Player>
+) {
+  const id = socket?.id;
+  return id ? players[id] : null;
+}
+
 export default function App() {
   const socketRef = useRef<Socket | null>(null);
-  const [players, setPlayers] = useState<Record<string, Player>>({})
-  const [projectiles, setProjectiles] = useState<Record<number, Projectile>>({});
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playersRef = useRef<Record<string, Player>>({});
-  const gameRef = useRef<HTMLDivElement | null>(null);
+  const projectilesRef = useRef<Record<number, Projectile>>({});
+  const prevProjectilesRef = useRef<Record<number, Projectile>>({});
+  const collectiblesRef = useRef<Record<number, Collectible>>({});
   const mouseRef = useRef({ x: 0, y: 0 });
   const keysRef = useRef({
     w: false,
@@ -98,6 +116,8 @@ export default function App() {
     s: false,
     d: false,
   });
+
+  const [players, setPlayers] = useState<Record<string, Player>>({});
 
   useEffect(() => {
     socketRef.current = io("http://localhost:3000");
@@ -107,13 +127,21 @@ export default function App() {
     });
 
     socketRef.current.on("updatePlayers", (serverPlayers: Record<string, Player>) => {
-      setPlayers(serverPlayers);
       playersRef.current = serverPlayers;
+      setPlayers(serverPlayers);
     });
 
     socketRef.current.on("updateProjectiles", (serverProjectiles: Record<number, Projectile>) => {
-      setProjectiles(serverProjectiles);
+      prevProjectilesRef.current = projectilesRef.current;
+      projectilesRef.current = serverProjectiles;
     });
+
+    socketRef.current.on(
+      "updateCollectibles",
+      (serverCollectibles: Record<number, Collectible>) => {
+        collectiblesRef.current = serverCollectibles;
+      }
+    );
 
     socketRef.current.on("disconnect", () => {
       console.log("Disconnected");
@@ -123,11 +151,13 @@ export default function App() {
       if (socketRef.current) {
         socketRef.current.off("updatePlayers");
         socketRef.current.off("updateProjectiles");
+        socketRef.current.off("updateCollectibles");
         socketRef.current.disconnect();
       }
     };
   }, []);
 
+  // INPUT HANDLING
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "w") keysRef.current.w = true;
@@ -143,7 +173,7 @@ export default function App() {
       if (e.key === "d") keysRef.current.d = false;
     };
 
-    const moveInterval = setInterval(() => {
+    let moveInterval: number = window.setInterval(() => {
       const keys = keysRef.current;
 
       let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
@@ -151,48 +181,38 @@ export default function App() {
 
       const dir = normalize(dx, dy);
 
-      if (!socketRef.current) return;
-      socketRef.current.emit("move", dir);
+      const socket = socketRef.current;
+      if (!socket) return;
+
+      socket.emit("move", dir);
+
+      // 🔥 ADD THIS (shoot direction update)
+      const player = playersRef.current[socket.id || ""];
+      if (!player) return;
+
+      const { width, height } = getViewport();
+      const { cameraX, cameraY } = getCamera(player.x, player.y, width, height);
+
+      const worldMouseX = mouseRef.current.x + cameraX;
+      const worldMouseY = mouseRef.current.y + cameraY;
+
+      const shootDir = normalize(
+        worldMouseX - player.x,
+        worldMouseY - player.y
+      );
+
+      socket.emit("shoot", shootDir);
+
     }, GAME_CONFIG.MOVE_INTERVAL);
 
     const handleMouseMove = (e: MouseEvent) => {
-      const rect = gameRef.current?.getBoundingClientRect();
+      const rect = canvasRef.current?.getBoundingClientRect();
 
       if (!rect) return;
 
       mouseRef.current.x = e.clientX - rect.left;
       mouseRef.current.y = e.clientY - rect.top;
     };
-
-    const shootInterval = setInterval(() => {
-      const socketId = socketRef.current?.id;
-      if (!socketId) return;
-
-      const player = playersRef.current[socketId];
-      if (!player) return;
-
-      const { width: viewWidth, height: viewHeight } = getViewport();
-
-      const { cameraX, cameraY } = getCamera(
-        player.x,
-        player.y,
-        viewWidth,
-        viewHeight
-      );
-
-      const worldMouseX = mouseRef.current.x + cameraX;
-      const worldMouseY = mouseRef.current.y + cameraY;
-
-      const dir = normalize(
-        worldMouseX - player.x,
-        worldMouseY - player.y
-      );
-
-      if (dir.dx === 0 && dir.dy === 0) return;
-
-      if (!socketRef.current) return;
-      socketRef.current.emit("shoot", dir);
-    }, GAME_CONFIG.SHOOT_INTERVAL);
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("keydown", handleKeyDown);
@@ -203,29 +223,132 @@ export default function App() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       clearInterval(moveInterval);
-      clearInterval(shootInterval);
     };
   }, []);
 
-  const socketId = socketRef.current?.id;
-  const me = socketId ? players[socketId] : null;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-  if (!me) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center text-white">
-        Connecting...
-      </div>
-    );
-  }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-  const { width: cameraViewWidth, height: cameraViewHeight } = getViewport();
+    let animationId: number;
 
-  const { cameraX, cameraY } = getCamera(
-    me.x,
-    me.y,
-    cameraViewWidth,
-    cameraViewHeight
-  );
+    const render = () => {
+      const { width, height } = getViewport();
+      canvas.width = width;
+      canvas.height = height;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const me = getMyPlayer(socketRef.current, playersRef.current);
+
+      let cameraX = 0;
+      let cameraY = 0;
+
+      if (me) {
+        const cam = getCamera(me.x, me.y, width, height);
+        cameraX = cam.cameraX;
+        cameraY = cam.cameraY;
+      }
+
+      // DRAW PROJECTILES
+      const projectilesData = projectilesRef.current;
+
+      ctx.fillStyle = "#ffffff"; // bright white bullets
+
+      for (const id in projectilesData) {
+        const p = projectilesData[id];
+        const prev = prevProjectilesRef.current[id];
+
+        let renderX = p.x;
+        let renderY = p.y;
+
+        if (prev) {
+          const alpha = 0.5; // interpolation factor
+
+          renderX = prev.x + (p.x - prev.x) * alpha;
+          renderY = prev.y + (p.y - prev.y) * alpha;
+        }
+
+        const x = renderX - cameraX;
+        const y = renderY - cameraY;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2); // smaller
+        ctx.fill();
+      }
+
+      // DRAW PLAYERS
+      const playersData = playersRef.current;
+
+      for (const id in playersData) {
+        const p = playersData[id];
+
+        if (!p.isAlive) continue;
+
+        const x = p.x - cameraX;
+        const y = p.y - cameraY;
+
+        // health ring
+        ctx.beginPath();
+        ctx.arc(x, y, 16, 0, Math.PI * 2);
+        ctx.strokeStyle = "#1f2937";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(
+          x,
+          y,
+          16,
+          -Math.PI / 2,
+          -Math.PI / 2 + (Math.PI * 2 * p.health) / 100
+        );
+        ctx.strokeStyle = "#22c55e";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // player body
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.fillStyle =
+          id === socketRef.current?.id ? "#4ade80" : "#f87171";
+        ctx.fill();
+      }
+
+      // 🔥 DRAW COLLECTIBLES
+      const collectiblesData = collectiblesRef.current;
+
+      for (const id in collectiblesData) {
+        const c = collectiblesData[id];
+
+        const x = c.x - cameraX;
+        const y = c.y - cameraY;
+
+        // glow effect
+        ctx.beginPath();
+        ctx.arc(x, y, c.size * 2, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(253, 224, 71, 0.2)";
+        ctx.fill();
+
+        // core
+        ctx.beginPath();
+        ctx.arc(x, y, c.size, 0, Math.PI * 2);
+        ctx.fillStyle = c.color;
+        ctx.fill();
+      }
+
+      animationId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, []);
 
   const leaderboard = [...Object.values(players)].sort(
     (a, b) => b.score - a.score
@@ -235,7 +358,6 @@ export default function App() {
     <div className="w-screen h-screen bg-gray-600 overflow-hidden relative">
       {/* Game Arena */}
       <div
-        ref={gameRef}
         className="absolute inset-0 overflow-hidden"
         style={{
           backgroundColor: "#0f172a",
@@ -246,48 +368,10 @@ export default function App() {
           backgroundSize: `${GAME_CONFIG.GRID_SIZE}px ${GAME_CONFIG.GRID_SIZE}px`
         }}
       >
-        {
-          Object.values(players)
-            .filter(player => player.isAlive)
-            .map((player) => (
-              <div
-                key={player.id}
-                className="absolute -translate-x-1/2 -translate-y-1/2"
-                style={{
-                  left: player.x - cameraX,
-                  top: player.y - cameraY,
-                }}
-              >
-                {/* Health Ring */}
-                <div
-                  className="absolute w-8 h-8 rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    background: `conic-gradient(#22c55e ${player.health}%, #1f2937 ${player.health}%)`,
-                    WebkitMask: "radial-gradient(circle, transparent 60%, black 61%)",
-                    mask: "radial-gradient(circle, transparent 60%, black 61%)",
-                  }}
-                />
-
-                {/* Inner Player Circle */}
-                <div
-                  className={`absolute w-5 h-5 rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${player.id === socketRef.current?.id ? "bg-green-400" : "bg-red-400"}`}
-                />
-              </div>
-            ))
-        }
-
-        {
-          Object.values(projectiles).map((p) => (
-            <div
-              key={p.id}
-              className="absolute w-2 h-2 bg-yellow-400 rounded-full -translate-x-1/2 -translate-y-1/2"
-              style={{
-                left: p.x - cameraX,
-                top: p.y - cameraY,
-              }}
-            />
-          ))
-        }
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 z-30 pointer-events-none"
+        />
       </div>
 
       <div className="absolute top-5 right-5 w-48 h-48 bg-gray-900 border border-gray-600 z-10 rounded">
@@ -308,7 +392,7 @@ export default function App() {
         })}
       </div>
 
-      <div className="mt-6 w-75">
+      <div className="absolute top-5 left-5 w-75 z-20 text-white p-4 border border-gray-600 rounded">
         <h3 className="text-lg font-semibold mb-2">Leaderboard</h3>
 
         {
