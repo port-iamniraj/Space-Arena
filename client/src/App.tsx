@@ -9,7 +9,18 @@ type Player = {
   health: number;
   score: number;
   isAlive: boolean;
+  coins: number;
+  skin: string;
+  angle: number;
+  upgrades: {
+    speed: number;
+    fireRate: number;
+    bulletSpeed: number;
+    damage: number;
+  };
 };
+
+type UpgradeKey = "speed" | "fireRate" | "bulletSpeed" | "damage";
 
 type Projectile = {
   id: number;
@@ -36,6 +47,34 @@ const GAME_CONFIG = {
   PLAYER_SIZE: 20,
   PLAYER_RING_SIZE: 32,
   PROJECTILE_SIZE: 8,
+};
+
+// ============================================
+// THEME CONFIG (Visual Layer Only)
+// ============================================
+
+const THEME = {
+  player: {
+    self: {
+      body: "#22c55e",
+      ringBg: "#1f2937",
+      ringHp: "#4ade80",
+    },
+    enemy: {
+      body: "#ef4444",
+      ringBg: "#1f2937",
+      ringHp: "#22c55e",
+    },
+  },
+
+  projectile: {
+    color: "#ffffff",
+    radius: 3,
+  },
+
+  collectible: {
+    glowAlpha: 0.25,
+  },
 };
 
 function getCamera(
@@ -103,6 +142,15 @@ function getMyPlayer(
 }
 
 export default function App() {
+  const [isShopOpen, setIsShopOpen] = useState<boolean>(false)
+  const [upgradeConfig, setUpgradeConfig] = useState<
+    Record<UpgradeKey, {
+      baseCost: number;
+      costMultiplier: number;
+      maxLevel: number;
+    }> | null
+  >(null);
+
   const socketRef = useRef<Socket | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playersRef = useRef<Record<string, Player>>({});
@@ -142,6 +190,10 @@ export default function App() {
         collectiblesRef.current = serverCollectibles;
       }
     );
+
+    socketRef.current.on("upgradeConfig", (config) => {
+      setUpgradeConfig(config);
+    });
 
     socketRef.current.on("disconnect", () => {
       console.log("Disconnected");
@@ -186,7 +238,7 @@ export default function App() {
 
       socket.emit("move", dir);
 
-      // 🔥 ADD THIS (shoot direction update)
+      // shoot direction update
       const player = playersRef.current[socket.id || ""];
       if (!player) return;
 
@@ -253,10 +305,9 @@ export default function App() {
         cameraY = cam.cameraY;
       }
 
-      // DRAW PROJECTILES
-      const projectilesData = projectilesRef.current;
+      const projectilesData = projectilesRef.current; // Drawing projectiles
 
-      ctx.fillStyle = "#ffffff"; // bright white bullets
+      ctx.fillStyle = THEME.projectile.color; // bright white bullets
 
       for (const id in projectilesData) {
         const p = projectilesData[id];
@@ -276,12 +327,11 @@ export default function App() {
         const y = renderY - cameraY;
 
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2); // smaller
+        ctx.arc(x, y, THEME.projectile.radius, 0, Math.PI * 2); // smaller
         ctx.fill();
       }
 
-      // DRAW PLAYERS
-      const playersData = playersRef.current;
+      const playersData = playersRef.current; // Drawing players
 
       for (const id in playersData) {
         const p = playersData[id];
@@ -291,10 +341,15 @@ export default function App() {
         const x = p.x - cameraX;
         const y = p.y - cameraY;
 
+        const angle = p.angle ?? 0;
+
         // health ring
         ctx.beginPath();
         ctx.arc(x, y, 16, 0, Math.PI * 2);
-        ctx.strokeStyle = "#1f2937";
+        ctx.strokeStyle =
+          id === socketRef.current?.id
+            ? THEME.player.self.ringBg
+            : THEME.player.enemy.ringBg;
         ctx.lineWidth = 4;
         ctx.stroke();
 
@@ -306,20 +361,52 @@ export default function App() {
           -Math.PI / 2,
           -Math.PI / 2 + (Math.PI * 2 * p.health) / 100
         );
-        ctx.strokeStyle = "#22c55e";
+        ctx.strokeStyle =
+          id === socketRef.current?.id
+            ? THEME.player.self.ringHp
+            : THEME.player.enemy.ringHp;
         ctx.lineWidth = 4;
         ctx.stroke();
 
         // player body
-        ctx.beginPath();
-        ctx.arc(x, y, 10, 0, Math.PI * 2);
+
+        // rotation
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+
+        // color
         ctx.fillStyle =
-          id === socketRef.current?.id ? "#4ade80" : "#f87171";
-        ctx.fill();
+          id === socketRef.current?.id
+            ? THEME.player.self.body
+            : THEME.player.enemy.body;
+
+        // shapes
+        if (p.skin === "default") {
+          ctx.beginPath();
+          ctx.arc(0, 0, 10, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        else if (p.skin === "fighter") {
+          ctx.beginPath();
+          ctx.moveTo(0, -12);
+          ctx.lineTo(-8, 8);
+          ctx.lineTo(8, 8);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        else if (p.skin === "interceptor") {
+          ctx.beginPath();
+          ctx.rect(-8, -8, 16, 16);
+          ctx.fill();
+        }
+
+        ctx.restore();
       }
 
-      // 🔥 DRAW COLLECTIBLES
-      const collectiblesData = collectiblesRef.current;
+      const collectiblesData = collectiblesRef.current;  // Draw collectibles
 
       for (const id in collectiblesData) {
         const c = collectiblesData[id];
@@ -330,7 +417,7 @@ export default function App() {
         // glow effect
         ctx.beginPath();
         ctx.arc(x, y, c.size * 2, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(253, 224, 71, 0.2)";
+        ctx.fillStyle = `rgba(253, 224, 71, ${THEME.collectible.glowAlpha})`;
         ctx.fill();
 
         // core
@@ -349,6 +436,8 @@ export default function App() {
       cancelAnimationFrame(animationId);
     };
   }, []);
+
+  const me = getMyPlayer(socketRef.current, players);
 
   const leaderboard = [...Object.values(players)].sort(
     (a, b) => b.score - a.score
@@ -374,7 +463,7 @@ export default function App() {
         />
       </div>
 
-      <div className="absolute top-5 right-5 w-48 h-48 bg-gray-900 border border-gray-600 z-10 rounded">
+      <div className="absolute bottom-5 right-5 w-48 h-48 bg-gray-900 border border-gray-600 z-10 rounded">
         {Object.values(players).map((p) => {
           const { miniX, miniY } = getMinimapPosition(p.x, p.y);
 
@@ -392,7 +481,8 @@ export default function App() {
         })}
       </div>
 
-      <div className="absolute top-5 left-5 w-75 z-20 text-white p-4 border border-gray-600 rounded">
+      {/* Leaderboard */}
+      <div className="text-white absolute top-5 right-5 w-75 z-20 p-4 border border-gray-600 rounded">
         <h3 className="text-lg font-semibold mb-2">Leaderboard</h3>
 
         {
@@ -404,6 +494,75 @@ export default function App() {
           ))
         }
       </div>
+
+      <div className="text-white bg-gray-900 absolute top-5 left-5 flex flex-col gap-3 rounded z-20">
+        <div className="border border-gray-600 px-6 py-2">
+          Coins: {me ? me.coins : 0}
+        </div>
+        <button
+          className="border border-gray-600 px-6 py-2 hover:bg-gray-800 cursor-pointer"
+          onClick={() => setIsShopOpen((prev) => !prev)}
+        >
+          Shop
+        </button>
+      </div>
+
+      {
+        isShopOpen &&
+        < div className="bg-gray-900 text-white w-150 p-5 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded border border-gray-600 z-30">
+          <button
+
+            className="bg-red-500 font-bold h-8 w-8 p-0 flex items-center justify-center absolute -top-2 -right-2 rounded-full hover:bg-gray-600 cursor-pointer"
+            onClick={() => setIsShopOpen(prev => !prev)}
+          >
+            X
+          </button>
+          <span>Coins: {me ? me.coins : 0}</span>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {upgradeConfig &&
+              Object.entries(upgradeConfig).map(([key, config]) => {
+                const typedKey = key as UpgradeKey;
+                const level = me?.upgrades?.[typedKey] ?? 0;
+
+                const cost = config.baseCost * Math.pow(config.costMultiplier, level);
+
+                const isMax = level >= config.maxLevel;
+                const canBuy = me && me.coins >= cost && !isMax;
+
+                return (
+                  <button
+                    key={key}
+                    disabled={!canBuy}
+                    onClick={() => socketRef.current?.emit("buyUpgrade", typedKey)}
+                    className={`px-3 py-2 rounded ${canBuy
+                      ? "bg-gray-700 hover:bg-gray-600"
+                      : "bg-gray-800 opacity-50 cursor-not-allowed"
+                      }`}
+                  >
+                    {key} (Lv {level}) - {isMax ? "MAX" : cost}
+                  </button>
+                );
+              })}
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2">Skins</div>
+
+            <div className="flex gap-2">
+              {["default", "fighter", "interceptor"].map((skin) => (
+                <button
+                  key={skin}
+                  onClick={() => socketRef.current?.emit("changeSkin", skin)}
+                  className="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600"
+                >
+                  {skin}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      }
     </div>
   );
 }
