@@ -1,137 +1,34 @@
 import { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+
+import { startGameRenderer } from "./game/startRendering";
+
 import type { Socket } from "socket.io-client";
+import type { Player } from "./types/player";
+import type { Projectile } from "./types/projectile";
+import type { Missile } from "./types/missile";
+import type { Collectible } from "./types/collectible";
+import type { Drop } from "./types/drop";
 
-type Player = {
-  id: string;
-  x: number;
-  y: number;
-  health: number;
-  score: number;
-  isAlive: boolean;
-  coins: number;
-  skin: string;
-  angle: number;
-  upgrades: {
-    speed: number;
-    fireRate: number;
-    bulletSpeed: number;
-    damage: number;
-  };
-};
+import { socket } from "./network/socket";
+import { registerSocketEvents } from "./network/socketEvents";
 
-type UpgradeKey = "speed" | "fireRate" | "bulletSpeed" | "damage";
+import { registerInputHandlers } from "./inputs/inputHandlers";
 
-type Projectile = {
-  id: number;
-  x: number;
-  y: number;
-};
+import { getMinimapPosition } from "./utils/minimap";
 
-type Collectible = {
-  id: number;
-  x: number;
-  y: number;
-  value: number;
-  size: number;
-  color: string
-};
+type UpgradeKey = "speed" | "fireRate" | "damage";
 
-const GAME_CONFIG = {
-  MAP_WIDTH: 3000,
-  MAP_HEIGHT: 3000,
-  MOVE_INTERVAL: 50,
-  SHOOT_INTERVAL: 200,
-  GRID_SIZE: 40,
-  MINIMAP_SIZE: 192,
-  PLAYER_SIZE: 20,
-  PLAYER_RING_SIZE: 32,
-  PROJECTILE_SIZE: 8,
-};
-
-// ============================================
-// THEME CONFIG (Visual Layer Only)
-// ============================================
-
-const THEME = {
-  player: {
-    self: {
-      body: "#22c55e",
-      ringBg: "#1f2937",
-      ringHp: "#4ade80",
-    },
-    enemy: {
-      body: "#ef4444",
-      ringBg: "#1f2937",
-      ringHp: "#22c55e",
-    },
-  },
-
-  projectile: {
-    color: "#ffffff",
-    radius: 3,
-  },
-
-  collectible: {
-    glowAlpha: 0.25,
-  },
-};
-
-function getCamera(
-  playerX: number,
-  playerY: number,
-  viewWidth: number,
-  viewHeight: number
-) {
-  let cameraX = playerX - viewWidth / 2;
-  let cameraY = playerY - viewHeight / 2;
-
-  cameraX = Math.max(
-    0,
-    Math.min(GAME_CONFIG.MAP_WIDTH - viewWidth, cameraX)
-  );
-
-  cameraY = Math.max(
-    0,
-    Math.min(GAME_CONFIG.MAP_HEIGHT - viewHeight, cameraY)
-  );
-
-  return { cameraX, cameraY };
-}
-
-function normalize(dx: number, dy: number) {
-  const length = Math.hypot(dx, dy);
-  if (length === 0) return { dx: 0, dy: 0 };
-
-  return {
-    dx: dx / length,
-    dy: dy / length,
-  };
-}
-
-function getViewport() {
-  return {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  };
-}
-
-function getMinimapPosition(x: number, y: number) {
-  const MAP_WIDTH = GAME_CONFIG.MAP_WIDTH;
-  const MAP_HEIGHT = GAME_CONFIG.MAP_HEIGHT;
-
-  const MINI_SIZE = GAME_CONFIG.MINIMAP_SIZE;
-  const DOT_SIZE = 6;
-  const HALF_DOT = DOT_SIZE / 2;
-
-  let miniX = (x / MAP_WIDTH) * MINI_SIZE;
-  let miniY = (y / MAP_HEIGHT) * MINI_SIZE;
-
-  miniX = Math.max(HALF_DOT, Math.min(MINI_SIZE - HALF_DOT, miniX));
-  miniY = Math.max(HALF_DOT, Math.min(MINI_SIZE - HALF_DOT, miniY));
-
-  return { miniX, miniY };
-}
+// const GAME_CONFIG = {
+//   MAP_WIDTH: 3000,
+//   MAP_HEIGHT: 3000,
+//   MOVE_INTERVAL: 50,
+//   SHOOT_INTERVAL: 200,
+//   GRID_SIZE: 40,
+//   MINIMAP_SIZE: 192,
+//   PLAYER_SIZE: 20,
+//   PLAYER_RING_SIZE: 32,
+//   PROJECTILE_SIZE: 8,
+// };
 
 function getMyPlayer(
   socket: Socket | null,
@@ -142,6 +39,7 @@ function getMyPlayer(
 }
 
 export default function App() {
+  const [players, setPlayers] = useState<Record<string, Player>>({});
   const [isShopOpen, setIsShopOpen] = useState<boolean>(false)
   const [upgradeConfig, setUpgradeConfig] = useState<
     Record<UpgradeKey, {
@@ -155,9 +53,14 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playersRef = useRef<Record<string, Player>>({});
   const projectilesRef = useRef<Record<number, Projectile>>({});
-  const prevProjectilesRef = useRef<Record<number, Projectile>>({});
+  const missilesRef = useRef<Record<number, Missile>>({});
   const collectiblesRef = useRef<Record<number, Collectible>>({});
+  const dropsRef = useRef<Record<number, Drop>>({});
   const mouseRef = useRef({ x: 0, y: 0 });
+  const cameraRef = useRef({
+    x: 0,
+    y: 0,
+  });
   const keysRef = useRef({
     w: false,
     a: false,
@@ -165,34 +68,22 @@ export default function App() {
     d: false,
   });
 
-  const [players, setPlayers] = useState<Record<string, Player>>({});
-
   useEffect(() => {
-    socketRef.current = io("http://localhost:3000");
+    socketRef.current = socket;
+
+    registerSocketEvents({
+      socket: socketRef.current,
+      playersRef,
+      missilesRef,
+      projectilesRef,
+      collectiblesRef,
+      dropsRef,
+      setPlayers,
+      setUpgradeConfig,
+    });
 
     socketRef.current.on("connect", () => {
       console.log("Connected:", socketRef.current?.id);
-    });
-
-    socketRef.current.on("updatePlayers", (serverPlayers: Record<string, Player>) => {
-      playersRef.current = serverPlayers;
-      setPlayers(serverPlayers);
-    });
-
-    socketRef.current.on("updateProjectiles", (serverProjectiles: Record<number, Projectile>) => {
-      prevProjectilesRef.current = projectilesRef.current;
-      projectilesRef.current = serverProjectiles;
-    });
-
-    socketRef.current.on(
-      "updateCollectibles",
-      (serverCollectibles: Record<number, Collectible>) => {
-        collectiblesRef.current = serverCollectibles;
-      }
-    );
-
-    socketRef.current.on("upgradeConfig", (config) => {
-      setUpgradeConfig(config);
     });
 
     socketRef.current.on("disconnect", () => {
@@ -201,240 +92,49 @@ export default function App() {
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.off("updatePlayers");
+        socketRef.current.off("playerMovement");
         socketRef.current.off("updateProjectiles");
+        socketRef.current.off("updateMissiles");
         socketRef.current.off("updateCollectibles");
+        socketRef.current.off("updateDrops");
+        socketRef.current.off("missileExplosion");
         socketRef.current.disconnect();
       }
     };
   }, []);
 
-  // INPUT HANDLING
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "w") keysRef.current.w = true;
-      if (e.key === "s") keysRef.current.s = true;
-      if (e.key === "a") keysRef.current.a = true;
-      if (e.key === "d") keysRef.current.d = true;
-    };
+    if (!socketRef.current) return;
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "w") keysRef.current.w = false;
-      if (e.key === "s") keysRef.current.s = false;
-      if (e.key === "a") keysRef.current.a = false;
-      if (e.key === "d") keysRef.current.d = false;
-    };
+    const cleanup =
+      registerInputHandlers({
+        socket: socketRef.current,
+        canvasRef,
+        playersRef,
+        mouseRef,
+        keysRef,
+      });
 
-    let moveInterval: number = window.setInterval(() => {
-      const keys = keysRef.current;
-
-      let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
-      let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
-
-      const dir = normalize(dx, dy);
-
-      const socket = socketRef.current;
-      if (!socket) return;
-
-      socket.emit("move", dir);
-
-      // shoot direction update
-      const player = playersRef.current[socket.id || ""];
-      if (!player) return;
-
-      const { width, height } = getViewport();
-      const { cameraX, cameraY } = getCamera(player.x, player.y, width, height);
-
-      const worldMouseX = mouseRef.current.x + cameraX;
-      const worldMouseY = mouseRef.current.y + cameraY;
-
-      const shootDir = normalize(
-        worldMouseX - player.x,
-        worldMouseY - player.y
-      );
-
-      socket.emit("shoot", shootDir);
-
-    }, GAME_CONFIG.MOVE_INTERVAL);
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-
-      if (!rect) return;
-
-      mouseRef.current.x = e.clientX - rect.left;
-      mouseRef.current.y = e.clientY - rect.top;
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      clearInterval(moveInterval);
-    };
+    return cleanup;
   }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const cleanup =
+      startGameRenderer({
+        canvas,
+        cameraRef,
+        playersRef,
+        projectilesRef,
+        missilesRef,
+        collectiblesRef,
+        dropsRef,
+      });
 
-    let animationId: number;
-
-    const render = () => {
-      const { width, height } = getViewport();
-      canvas.width = width;
-      canvas.height = height;
-
-      ctx.clearRect(0, 0, width, height);
-
-      const me = getMyPlayer(socketRef.current, playersRef.current);
-
-      let cameraX = 0;
-      let cameraY = 0;
-
-      if (me) {
-        const cam = getCamera(me.x, me.y, width, height);
-        cameraX = cam.cameraX;
-        cameraY = cam.cameraY;
-      }
-
-      const projectilesData = projectilesRef.current; // Drawing projectiles
-
-      ctx.fillStyle = THEME.projectile.color; // bright white bullets
-
-      for (const id in projectilesData) {
-        const p = projectilesData[id];
-        const prev = prevProjectilesRef.current[id];
-
-        let renderX = p.x;
-        let renderY = p.y;
-
-        if (prev) {
-          const alpha = 0.5; // interpolation factor
-
-          renderX = prev.x + (p.x - prev.x) * alpha;
-          renderY = prev.y + (p.y - prev.y) * alpha;
-        }
-
-        const x = renderX - cameraX;
-        const y = renderY - cameraY;
-
-        ctx.beginPath();
-        ctx.arc(x, y, THEME.projectile.radius, 0, Math.PI * 2); // smaller
-        ctx.fill();
-      }
-
-      const playersData = playersRef.current; // Drawing players
-
-      for (const id in playersData) {
-        const p = playersData[id];
-
-        if (!p.isAlive) continue;
-
-        const x = p.x - cameraX;
-        const y = p.y - cameraY;
-
-        const angle = p.angle ?? 0;
-
-        // health ring
-        ctx.beginPath();
-        ctx.arc(x, y, 16, 0, Math.PI * 2);
-        ctx.strokeStyle =
-          id === socketRef.current?.id
-            ? THEME.player.self.ringBg
-            : THEME.player.enemy.ringBg;
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(
-          x,
-          y,
-          16,
-          -Math.PI / 2,
-          -Math.PI / 2 + (Math.PI * 2 * p.health) / 100
-        );
-        ctx.strokeStyle =
-          id === socketRef.current?.id
-            ? THEME.player.self.ringHp
-            : THEME.player.enemy.ringHp;
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        // player body
-
-        // rotation
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-
-        // color
-        ctx.fillStyle =
-          id === socketRef.current?.id
-            ? THEME.player.self.body
-            : THEME.player.enemy.body;
-
-        // shapes
-        if (p.skin === "default") {
-          ctx.beginPath();
-          ctx.arc(0, 0, 10, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        else if (p.skin === "fighter") {
-          ctx.beginPath();
-          ctx.moveTo(0, -12);
-          ctx.lineTo(-8, 8);
-          ctx.lineTo(8, 8);
-          ctx.closePath();
-          ctx.fill();
-        }
-
-        else if (p.skin === "interceptor") {
-          ctx.beginPath();
-          ctx.rect(-8, -8, 16, 16);
-          ctx.fill();
-        }
-
-        ctx.restore();
-      }
-
-      const collectiblesData = collectiblesRef.current;  // Draw collectibles
-
-      for (const id in collectiblesData) {
-        const c = collectiblesData[id];
-
-        const x = c.x - cameraX;
-        const y = c.y - cameraY;
-
-        // glow effect
-        ctx.beginPath();
-        ctx.arc(x, y, c.size * 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(253, 224, 71, ${THEME.collectible.glowAlpha})`;
-        ctx.fill();
-
-        // core
-        ctx.beginPath();
-        ctx.arc(x, y, c.size, 0, Math.PI * 2);
-        ctx.fillStyle = c.color;
-        ctx.fill();
-      }
-
-      animationId = requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      cancelAnimationFrame(animationId);
-    };
+    return cleanup;
   }, []);
 
   const me = getMyPlayer(socketRef.current, players);
@@ -447,15 +147,15 @@ export default function App() {
     <div className="w-screen h-screen bg-gray-600 overflow-hidden relative">
       {/* Game Arena */}
       <div
-        className="absolute inset-0 overflow-hidden"
-        style={{
-          backgroundColor: "#0f172a",
-          backgroundImage: `
-      linear-gradient(#1e293b 1px, transparent 1px),
-      linear-gradient(90deg, #1e293b 1px, transparent 1px)
-    `,
-          backgroundSize: `${GAME_CONFIG.GRID_SIZE}px ${GAME_CONFIG.GRID_SIZE}px`
-        }}
+        className="absolute inset-0 overflow-hidden bg-black"
+      //     style={{
+      //       backgroundColor: "#0f172a",
+      //       backgroundImage: `
+      //   linear-gradient(#1e293b 1px, transparent 1px),
+      //   linear-gradient(90deg, #1e293b 1px, transparent 1px)
+      // `,
+      //       backgroundSize: `${GAME_CONFIG.MAP.GRID_SIZE}px ${GAME_CONFIG.MAP.GRID_SIZE}px`
+      //     }}
       >
         <canvas
           ref={canvasRef}
@@ -463,7 +163,7 @@ export default function App() {
         />
       </div>
 
-      <div className="absolute bottom-5 right-5 w-48 h-48 bg-gray-900 border border-gray-600 z-10 rounded">
+      <div className="absolute bottom-5 right-5 w-32 h-32 bg-gray-900 border border-gray-600 z-10 rounded">
         {Object.values(players).map((p) => {
           const { miniX, miniY } = getMinimapPosition(p.x, p.y);
 
@@ -544,6 +244,53 @@ export default function App() {
                   </button>
                 );
               })}
+          </div>
+
+          <div className="mt-5">
+
+            <div className="mb-2 text-sm text-gray-400">
+              Special Weapons
+            </div>
+
+            <button
+              disabled={
+                me?.upgrades.missile ||
+                (me?.coins ?? 0) < 1000
+              }
+
+              onClick={() =>
+                socketRef.current?.emit(
+                  "buyUpgrade",
+                  "missile"
+                )
+              }
+
+              className={`
+      w-full px-4 py-3 rounded
+      flex items-center justify-between
+
+      ${me?.upgrades.missile
+                  ? "bg-blue-900 text-blue-200"
+                  : (me?.coins ?? 0) >= 1000
+                    ? "bg-gray-700 hover:bg-gray-600"
+                    : "bg-gray-800 opacity-50 cursor-not-allowed"
+                }
+    `}
+            >
+
+              <span>
+                Homing Missile
+              </span>
+
+              <span>
+                {
+                  me?.upgrades.missile
+                    ? "OWNED"
+                    : "1000"
+                }
+              </span>
+
+            </button>
           </div>
 
           <div className="mt-4">
