@@ -31,6 +31,13 @@ export function registerSocketHandlers({
 
     socket.on("joinGame", ({ name, skin }) => {
 
+        console.log(
+            "joinGame received",
+            socket.id,
+            name,
+            skin
+        );
+
         const safeName = name.trim().slice(0, 15);
 
         if (!safeName) return;
