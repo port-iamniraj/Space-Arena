@@ -2,7 +2,7 @@
 
 Real-time multiplayer browser arena shooter built with React, TypeScript, Socket.IO, and server-authoritative multiplayer architecture.
 
-![Gameplay](./assets/gameplay.mp4)
+<video src="./assets/gameplay.mp4" controls width="100%"></video>
 
 ---
 
