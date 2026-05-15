@@ -27,17 +27,6 @@ export function registerSocketEvents({
 }: RegisterSocketEventsParams) {
 
     socket.on("playerMovement", (serverPlayers) => {
-
-        console.log(
-            "SERVER PLAYERS:",
-            serverPlayers
-        );
-
-        console.log(
-            "SOCKET ID:",
-            socket.id
-        );
-
         const current = playersRef.current;
 
         for (const id in serverPlayers) {

@@ -76,8 +76,6 @@ export function registerSocketHandlers({
             },
         };
 
-        console.log(players);
-
         io.emit("playerMovement", players);
     });
 
