@@ -71,6 +71,11 @@ export function startGameLoop({
 
         handleDropPickups(players, drops);
 
+        console.log(
+            "GAME LOOP PLAYERS:",
+            players
+        );
+
         io.emit("playerMovement", players);
         io.emit("updateProjectiles", projectiles);
         io.emit("updateMissiles", missiles);
