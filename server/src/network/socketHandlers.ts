@@ -30,14 +30,6 @@ export function registerSocketHandlers({
     io.emit("updateDrops", drops);
 
     socket.on("joinGame", ({ name, skin }) => {
-
-        console.log(
-            "joinGame received",
-            socket.id,
-            name,
-            skin
-        );
-
         const safeName = name.trim().slice(0, 15);
 
         if (!safeName) return;
@@ -83,6 +75,8 @@ export function registerSocketHandlers({
                 missile: false,
             },
         };
+
+        console.log(players);
 
         io.emit("playerMovement", players);
     });
