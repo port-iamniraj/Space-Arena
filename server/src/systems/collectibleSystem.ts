@@ -1,12 +1,10 @@
 import type { Player } from "../types/player";
-
 import type { Collectible } from "../types/collectible";
 
 import { GAME_CONFIG } from "../config/gameConfig";
 
 export function spawnCollectibles(
-    collectibles:
-        Record<number, Collectible>,
+    collectibles: Record<number, Collectible>,
 
     collectibleIdRef: {
         current: number;

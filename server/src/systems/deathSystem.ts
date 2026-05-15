@@ -1,39 +1,39 @@
-import { GAME_CONFIG }
-    from "../config/gameConfig";
+import { GAME_CONFIG } from "../config/gameConfig";
 
-import type { Player }
-    from "../types/player";
-
-import type { Collectible }
-    from "../types/collectible";
+import type { Server } from "socket.io";
+import type { Player } from "../types/player";
+import type { Collectible } from "../types/collectible";
 
 export function handleDeaths(
+    io: Server,
     players: Record<string, Player>,
-
-    collectibles:
-        Record<number, Collectible>,
-
-    collectibleIdRef: {
-        current: number;
-    }
+    collectibles: Record<number, Collectible>,
+    collectibleIdRef: { current: number; }
 ) {
+
     for (const playerId in players) {
+
         const player = players[playerId];
 
         if (player.health <= 0 && player.isAlive) {
+
             player.isAlive = false;
+
+            io.to(playerId).emit("playerDead");
+
             player.health = 0;
 
             const killerId = (player as any).lastHitBy;
 
             if (killerId && players[killerId]) {
-                players[killerId].score += 5;
-                players[killerId].coins += 5000;
+                players[killerId].score += 10;
+                players[killerId].coins += 10;
             }
 
             const DROP_COUNT = GAME_CONFIG.COLLECTIBLE.DROP_COUNT;
 
             for (let i = 0; i < DROP_COUNT; i++) {
+
                 const angle = Math.random() * Math.PI * 2;
                 const distance = Math.random() * 30;
 
@@ -42,14 +42,20 @@ export function handleDeaths(
 
                 collectibles[collectibleIdRef.current] = {
                     id: collectibleIdRef.current,
+
                     x,
                     y,
+
                     value: 1,
+
                     size:
                         GAME_CONFIG.COLLECTIBLE.SIZE_MIN +
                         Math.random() *
-                        (GAME_CONFIG.COLLECTIBLE.SIZE_MAX -
-                            GAME_CONFIG.COLLECTIBLE.SIZE_MIN),
+                        (
+                            GAME_CONFIG.COLLECTIBLE.SIZE_MAX -
+                            GAME_CONFIG.COLLECTIBLE.SIZE_MIN
+                        ),
+
                     color:
                         GAME_CONFIG.COLLECTIBLE.COLORS[
                         Math.floor(
@@ -61,22 +67,6 @@ export function handleDeaths(
 
                 collectibleIdRef.current++;
             }
-
-            setTimeout(() => {
-                player.x = Math.random() * GAME_CONFIG.MAP.WIDTH;
-                player.y = Math.random() * GAME_CONFIG.MAP.WIDTH;
-                player.health = GAME_CONFIG.PLAYER.MAX_HEALTH;
-                player.shieldTimer = 0;
-                player.isAlive = true;
-
-                player.coins = 0;
-                player.upgrades = {
-                    speed: 0,
-                    fireRate: 0,
-                    damage: 0,
-                    missile: false
-                };
-            }, GAME_CONFIG.PLAYER.RESPAWN_DELAY);
         }
     }
 }

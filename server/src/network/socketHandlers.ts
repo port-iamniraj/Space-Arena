@@ -1,289 +1,164 @@
-import type { Server }
-    from "socket.io";
+import type { Server, Socket } from "socket.io";
 
-import type { Socket }
-    from "socket.io";
+import type { Player } from "../types/player";
+import type { Drop } from "../types/drop";
 
-import type { Player }
-    from "../types/player";
+import { GAME_CONFIG } from "../config/gameConfig";
+import { UPGRADE_CONFIG, UPGRADE_CONFIG_WEAPONS } from "@game/shared";
 
-import type { Drop }
-    from "../types/drop";
-
-import { GAME_CONFIG }
-    from "../config/gameConfig";
-
-import { UPGRADE_CONFIG }
-    from "../config/upgradeConfig";
-
-const SKINS = [
-    "default",
-    "fighter",
-    "interceptor",
-];
+const SKINS = ["default", "fighter", "interceptor"];
 
 type RegisterSocketHandlersParams = {
     io: Server;
-
     socket: Socket;
-
-    players:
-    Record<string, Player>;
-
-    drops:
-    Record<number, Drop>;
+    players: Record<string, Player>;
+    drops: Record<number, Drop>;
 };
 
-type UpgradeKey =
-    keyof Player["upgrades"];
+type UpgradeKey = keyof Player["upgrades"];
 
 export function registerSocketHandlers({
     io,
-
     socket,
-
     players,
-
     drops,
 }: RegisterSocketHandlersParams) {
 
-    console.log(
-        "User connected:",
-        socket.id
-    );
+    console.log("User connected:", socket.id);
 
-    players[socket.id] = {
-        id: socket.id,
+    socket.emit("upgradeConfig", UPGRADE_CONFIG);
+    io.emit("updateDrops", drops);
 
-        x: Math.random() * GAME_CONFIG.MAP.WIDTH,
-        y: Math.random() * GAME_CONFIG.MAP.WIDTH,
+    socket.on("joinGame", ({ name, skin }) => {
 
-        radius:
-            GAME_CONFIG.PLAYER.RADIUS,
+        const safeName = name.trim().slice(0, 15);
 
-        health: 100,
+        if (!safeName) return;
 
-        shieldTimer: 0,
+        players[socket.id] = {
+            id: socket.id,
+            name: safeName,
 
-        score: 0,
+            x: Math.random() * GAME_CONFIG.MAP.WIDTH,
+            y: Math.random() * GAME_CONFIG.MAP.HEIGHT,
 
-        isAlive: true,
+            radius: GAME_CONFIG.PLAYER.RADIUS,
 
-        dx: 0,
-        dy: 0,
+            health: 100,
+            shieldTimer: 0,
 
-        dxShoot: 0,
-        dyShoot: 0,
+            score: 0,
+            coins: 0,
 
-        shotTick: 0,
+            isAlive: true,
 
-        coins: 0,
+            dx: 0,
+            dy: 0,
 
-        skin: "default",
+            dxShoot: 0,
+            dyShoot: 0,
 
-        angle: 0,
+            shotTick: 0,
 
-        baseStats: {
-            speed:
-                GAME_CONFIG.PLAYER.SPEED,
+            skin,
+            angle: 0,
 
-            fireRate:
-                GAME_CONFIG.PROJECTILE
-                    .FIRE_RATE_TICKS,
+            baseStats: {
+                speed: GAME_CONFIG.PLAYER.SPEED,
+                fireRate: GAME_CONFIG.PROJECTILE.FIRE_RATE_TICKS,
+                damage: GAME_CONFIG.PROJECTILE.DAMAGE,
+            },
 
-            damage:
-                GAME_CONFIG.PROJECTILE
-                    .DAMAGE,
-        },
+            upgrades: {
+                speed: 0,
+                fireRate: 0,
+                damage: 0,
+                missile: false,
+            },
+        };
 
-        upgrades: {
-            speed: 0,
+        io.emit("playerMovement", players);
+    });
 
-            fireRate: 0,
+    socket.on("disconnect", () => {
 
-            damage: 0,
+        console.log("User disconnected:", socket.id);
 
-            missile: false,
-        },
-    };
-
-    io.emit(
-        "playerMovement",
-        players
-    );
-
-    socket.emit(
-        "upgradeConfig",
-        UPGRADE_CONFIG
-    );
-
-    io.emit(
-        "updateDrops",
-        drops
-    );
-
-    socket.on(
-        "disconnect",
-        () => {
-
-            console.log(
-                "User disconnected:",
-                socket.id
-            );
-
+        if (players[socket.id]) {
             delete players[socket.id];
-
-            io.emit(
-                "playerMovement",
-                players
-            );
         }
-    );
 
-    socket.on(
-        "move",
+        io.emit("playerMovement", players);
+    });
 
-        (direction) => {
+    socket.on("move", (direction) => {
 
-            const player =
-                players[socket.id];
+        const player = players[socket.id];
 
-            if (
-                !player ||
-                !player.isAlive
-            ) {
-                return;
-            }
+        if (!player || !player.isAlive) return;
 
-            player.dx =
-                direction.dx;
+        player.dx = direction.dx;
+        player.dy = direction.dy;
+    });
 
-            player.dy =
-                direction.dy;
+    socket.on("shoot", ({ dx, dy }) => {
+
+        const player = players[socket.id];
+
+        if (!player || !player.isAlive) return;
+
+        player.angle = Math.atan2(dy, dx);
+
+        player.dxShoot = dx;
+        player.dyShoot = dy;
+    });
+
+    socket.on("buyUpgrade", (type: UpgradeKey) => {
+
+        const player = players[socket.id];
+
+        if (!player || !player.isAlive) return;
+
+        if (type === "missile") {
+
+            if (player.upgrades.missile) return;
+
+            const MISSILE_COST = UPGRADE_CONFIG_WEAPONS.missile.baseCost;
+
+            if (player.coins < MISSILE_COST) return;
+
+            player.coins -= MISSILE_COST;
+            player.upgrades.missile = true;
+
+            return;
         }
-    );
 
-    socket.on(
-        "shoot",
+        const config = UPGRADE_CONFIG[type];
 
-        ({ dx, dy }) => {
+        if (!config) return;
 
-            const player =
-                players[socket.id];
+        const currentLevel = player.upgrades[type];
 
-            if (
-                !player ||
-                !player.isAlive
-            ) {
-                return;
-            }
+        if (currentLevel >= config.maxLevel) return;
 
-            player.angle =
-                Math.atan2(dy, dx);
+        const cost =
+            config.baseCost *
+            Math.pow(config.costMultiplier, currentLevel);
 
-            player.dxShoot = dx;
-            player.dyShoot = dy;
-        }
-    );
+        if (player.coins < cost) return;
 
-    socket.on(
-        "buyUpgrade",
+        player.upgrades[type] += 1;
+        player.coins -= cost;
+    });
 
-        (type: UpgradeKey) => {
+    socket.on("changeSkin", (skin) => {
 
-            const player =
-                players[socket.id];
+        const player = players[socket.id];
 
-            if (
-                !player ||
-                !player.isAlive
-            ) {
-                return;
-            }
+        if (!player) return;
 
-            if (type === "missile") {
+        if (!SKINS.includes(skin)) return;
 
-                if (
-                    player.upgrades.missile
-                ) {
-                    return;
-                }
-
-                const MISSILE_COST =
-                    1000;
-
-                if (
-                    player.coins <
-                    MISSILE_COST
-                ) {
-                    return;
-                }
-
-                player.coins -=
-                    MISSILE_COST;
-
-                player.upgrades.missile =
-                    true;
-
-                return;
-            }
-
-            const config =
-                UPGRADE_CONFIG[type];
-
-            if (!config) {
-                return;
-            }
-
-            const currentLevel =
-                player.upgrades[type];
-
-            if (
-                currentLevel >=
-                config.maxLevel
-            ) {
-                return;
-            }
-
-            const cost =
-                config.baseCost *
-
-                Math.pow(
-                    config.costMultiplier,
-                    currentLevel
-                );
-
-            if (
-                player.coins < cost
-            ) {
-                return;
-            }
-
-            player.upgrades[type] += 1;
-
-            player.coins -= cost;
-        }
-    );
-
-    socket.on(
-        "changeSkin",
-
-        (skin) => {
-
-            const player =
-                players[socket.id];
-
-            if (!player) {
-                return;
-            }
-
-            if (
-                !SKINS.includes(skin)
-            ) {
-                return;
-            }
-
-            player.skin = skin;
-        }
-    );
+        player.skin = skin;
+    });
 }

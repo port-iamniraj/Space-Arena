@@ -1,7 +1,6 @@
 import { GAME_CONFIG } from "../config/gameConfig";
 
 import type { Drop } from "../types/drop";
-
 import type { Player } from "../types/player";
 
 
@@ -60,8 +59,6 @@ export function handleDropPickups(
                 // ============================================
 
                 if (drop.type === "health") {
-
-                    // cannot pickup at full health
                     if (
                         player.health >=
                         GAME_CONFIG.PLAYER.MAX_HEALTH
@@ -80,13 +77,10 @@ export function handleDropPickups(
                 // ============================================
 
                 if (drop.type === "shield") {
-
-                    // cannot stack shield
                     if (player.shieldTimer > Date.now()) {
                         continue;
                     }
 
-                    // 10 second shield
                     player.shieldTimer =
                         Date.now() + GAME_CONFIG.DROP.SHIELD_DURATION
                 }

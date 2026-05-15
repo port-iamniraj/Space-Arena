@@ -4,6 +4,7 @@ import { skinImages, shieldImage, thrustImage } from "../assets/images";
 
 type Player = {
     id: string;
+    name: string;
     x: number;
     y: number;
     renderX?: number;
@@ -231,6 +232,21 @@ export function renderPlayers({
                 size
             );
         }
+
+        ctx.restore();
+
+        // Player name
+        ctx.save();
+
+        ctx.fillStyle = "#bbb";
+        ctx.font = "12px arial";
+        ctx.textAlign = "center";
+
+        ctx.fillText(
+            player.name,
+            x,
+            y - player.radius - 14
+        );
 
         ctx.restore();
     }

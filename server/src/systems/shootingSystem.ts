@@ -1,17 +1,13 @@
 import { GAME_CONFIG } from "../config/gameConfig";
 
 import type { Player } from "../types/player";
-
 import type { Projectile } from "../types/projectile";
 
 import { getPlayerStats, } from "./getPlayerStats";
 
 export function handleShooting(
     players: Record<string, Player>,
-
-    projectiles:
-        Record<number, Projectile>,
-
+    projectiles: Record<number, Projectile>,
     projectileIdRef: {
         current: number;
     }
@@ -29,7 +25,7 @@ export function handleShooting(
 
         player.shotTick = 0;
 
-        const NOSE_OFFSET = player.radius; // tweak this value for perfect feel
+        const NOSE_OFFSET = player.radius;
 
         projectiles[projectileIdRef.current] = {
             id: projectileIdRef.current,

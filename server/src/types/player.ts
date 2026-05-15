@@ -1,37 +1,19 @@
-export type Player = {
-    id: string;
-    x: number;
-    y: number;
-    radius: number;
+import type { PlayerState } from "@game/shared";
 
-    health: number;
-    shieldTimer: number;
-    score: number;
-    isAlive: boolean;
+export type Player =
+    PlayerState & {
 
-    dx: number;
-    dy: number;
+        dxShoot: number;
 
-    dxShoot: number;
-    dyShoot: number;
-    shotTick: number;
+        dyShoot: number;
 
-    coins: number;
+        shotTick: number;
 
-    skin: string;
+        baseStats: {
+            speed: number;
 
-    angle: number;
+            fireRate: number;
 
-    baseStats: {
-        speed: number;
-        fireRate: number;
-        damage: number;
+            damage: number;
+        };
     };
-
-    upgrades: {
-        speed: number;
-        fireRate: number;
-        damage: number;
-        missile: boolean;
-    };
-};

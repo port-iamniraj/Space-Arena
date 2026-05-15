@@ -1,69 +1,26 @@
-import type { Server }
-    from "socket.io";
+import type { Server } from "socket.io";
 
-import type { Player }
-    from "../types/player";
+import type { Player } from "../types/player";
+import type { Drop } from "../types/drop";
 
-import type { Drop }
-    from "../types/drop";
+import { GAME_CONFIG } from "../config/gameConfig";
 
-import { GAME_CONFIG }
-    from "../config/gameConfig";
+import { playerMovement } from "../systems/movementSystem";
+import { handleShooting } from "../systems/shootingSystem";
+import { updateProjectiles } from "../systems/projectileSystem";
+import { handleDeaths } from "../systems/deathSystem";
+import { spawnMissiles, updateMissiles } from "../systems/missileSystem";
+import { handleCollectibles, spawnCollectibles } from "../systems/collectibleSystem";
+import { spawnDrops, handleDropPickups } from "../systems/dropSystem";
 
-import {
-    playerMovement,
-} from "../systems/movementSystem";
-
-import {
-    handleShooting,
-} from "../systems/shootingSystem";
-
-import {
-    updateProjectiles,
-} from "../systems/projectileSystem";
-
-import {
-    spawnMissiles,
-    updateMissiles,
-} from "../systems/missileSystem";
-
-import {
-    handleDeaths,
-} from "../systems/deathSystem";
-
-import {
-    handleCollectibles,
-    spawnCollectibles,
-} from "../systems/collectibleSystem";
-
-import {
-    spawnDrops,
-    handleDropPickups,
-} from "../systems/dropSystem";
-
-import {
-    projectiles,
-    projectileIdRef,
-} from "../state/projectiles";
-
-import {
-    missiles,
-    missileIdRef,
-} from "../state/missiles";
-
-import {
-    collectibles,
-    collectibleIdRef,
-} from "../state/collectibles";
+import { projectiles, projectileIdRef } from "../state/projectiles";
+import { missiles, missileIdRef } from "../state/missiles";
+import { collectibles, collectibleIdRef } from "../state/collectibles";
 
 type StartGameLoopParams = {
     io: Server;
-
-    players:
-    Record<string, Player>;
-
-    drops:
-    Record<number, Drop>;
+    players: Record<string, Player>;
+    drops: Record<number, Drop>;
 
     dropIdRef: {
         current: number;
@@ -72,16 +29,12 @@ type StartGameLoopParams = {
 
 export function startGameLoop({
     io,
-
     players,
-
     drops,
-
     dropIdRef,
 }: StartGameLoopParams) {
 
     setInterval(() => {
-
         playerMovement(players);
 
         handleShooting(
@@ -96,11 +49,7 @@ export function startGameLoop({
             missileIdRef
         );
 
-        updateMissiles(
-            io,
-            players,
-            missiles
-        );
+        updateMissiles(io, players, missiles);
 
         updateProjectiles(
             io,
@@ -109,10 +58,9 @@ export function startGameLoop({
         );
 
         handleDeaths(
+            io,
             players,
-
             collectibles,
-
             collectibleIdRef
         );
 
@@ -121,53 +69,20 @@ export function startGameLoop({
             collectibles
         );
 
-        handleDropPickups(
-            players,
-            drops
-        );
+        handleDropPickups(players, drops);
 
-        io.emit(
-            "playerMovement",
-            players
-        );
-
-        io.emit(
-            "updateProjectiles",
-            projectiles
-        );
-
-        io.emit(
-            "updateMissiles",
-            missiles
-        );
-
-        io.emit(
-            "updateCollectibles",
-            collectibles
-        );
-
-        io.emit(
-            "updateDrops",
-            drops
-        );
-
+        io.emit("playerMovement", players);
+        io.emit("updateProjectiles", projectiles);
+        io.emit("updateMissiles", missiles);
+        io.emit("updateCollectibles", collectibles);
+        io.emit("updateDrops", drops);
     }, GAME_CONFIG.GAME.TICK_RATE);
 
     setInterval(() => {
-
-        spawnCollectibles(
-            collectibles,
-            collectibleIdRef
-        );
-
+        spawnCollectibles(collectibles, collectibleIdRef);
     }, GAME_CONFIG.GAME.COLLECTIBLE_SPAWN_INTERVAL);
 
     setInterval(() => {
-
-        spawnDrops(
-            drops,
-            dropIdRef
-        );
-
+        spawnDrops(drops, dropIdRef);
     }, GAME_CONFIG.DROP.RESPAWN_INTERVAL);
 }

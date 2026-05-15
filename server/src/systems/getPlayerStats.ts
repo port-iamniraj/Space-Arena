@@ -6,7 +6,7 @@ export function getPlayerStats(player: Player) {
 
         fireRate: Math.max(
             1,
-            player.baseStats.fireRate - player.upgrades.fireRate // lower = faster shooting
+            player.baseStats.fireRate - player.upgrades.fireRate
         ),
 
         damage: player.baseStats.damage + player.upgrades.damage,

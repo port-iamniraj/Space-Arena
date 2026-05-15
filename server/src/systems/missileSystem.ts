@@ -1,28 +1,16 @@
-import { GAME_CONFIG }
-    from "../config/gameConfig";
+import { GAME_CONFIG } from "../config/gameConfig";
 
-import type { Player }
-    from "../types/player";
+import type { Player } from "../types/player";
+import type { Missile } from "../types/missile";
 
-import type { Missile }
-    from "../types/missile";
+import { findNearestTarget } from "./findNearestTarget";
 
-import {
-    findNearestTarget,
-} from "./findNearestTarget";
-
-import type { Server }
-    from "socket.io";
+import type { Server } from "socket.io";
 
 export function spawnMissiles(
     players: Record<string, Player>,
-
-    missiles:
-        Record<number, Missile>,
-
-    missileIdRef: {
-        current: number;
-    }
+    missiles: Record<number, Missile>,
+    missileIdRef: { current: number; }
 ) {
 
     for (const playerId in players) {
@@ -33,7 +21,6 @@ export function spawnMissiles(
 
         if (!player.upgrades.missile) continue;
 
-        // only ONE missile at a time
         const alreadyHasMissile =
             Object.values(missiles).some(
                 (m) => m.ownerId === playerId
@@ -86,14 +73,9 @@ export function spawnMissiles(
 
 export function explodeMissile(
     io: Server,
-
     missile: Missile,
-
-    missiles:
-        Record<number, Missile>,
-
-    players:
-        Record<string, Player>
+    missiles: Record<number, Missile>,
+    players: Record<string, Player>
 ) {
 
     io.emit("missileExplosion", {
@@ -114,18 +96,13 @@ export function explodeMissile(
             player.y - missile.y
         );
 
-        if (
-            dist >
-            GAME_CONFIG.MISSILE.EXPLOSION_RADIUS
-        ) continue;
+        if (dist > GAME_CONFIG.MISSILE.EXPLOSION_RADIUS) continue;
 
         // shield immunity
-        const hasShield =
-            player.shieldTimer > Date.now();
+        const hasShield = player.shieldTimer > Date.now();
 
         if (!hasShield) {
-            player.health -=
-                GAME_CONFIG.MISSILE.DAMAGE;
+            player.health -= GAME_CONFIG.MISSILE.DAMAGE;
         }
     }
 
@@ -134,11 +111,8 @@ export function explodeMissile(
 
 export function updateMissiles(
     io: Server,
-
     players: Record<string, Player>,
-
-    missiles:
-        Record<number, Missile>
+    missiles: Record<number, Missile>
 ) {
 
     for (const id in missiles) {
@@ -151,10 +125,9 @@ export function updateMissiles(
         // Homing Movement
         // ============================================
 
-        const target =
-            missile.targetId
-                ? players[missile.targetId]
-                : null;
+        const target = missile.targetId
+            ? players[missile.targetId]
+            : null;
 
         if (target && target.isAlive) {
 
@@ -165,14 +138,15 @@ export function updateMissiles(
             );
 
             // shortest angle difference
-            let angleDiff =
-                desiredAngle - missile.angle;
+            let angleDiff = desiredAngle - missile.angle;
 
-            while (angleDiff > Math.PI)
+            while (angleDiff > Math.PI) {
                 angleDiff -= Math.PI * 2;
+            }
 
-            while (angleDiff < -Math.PI)
+            while (angleDiff < -Math.PI) {
                 angleDiff += Math.PI * 2;
+            }
 
             // clamp turning speed
             angleDiff = Math.max(
@@ -186,7 +160,7 @@ export function updateMissiles(
             missile.angle += angleDiff;
         }
 
-        // update velocity from angle
+        // updating velocity from angle
         missile.velocity.x =
             Math.cos(missile.angle) *
             GAME_CONFIG.MISSILE.SPEED;
@@ -209,26 +183,19 @@ export function updateMissiles(
 
             if (!player.isAlive) continue;
 
-            if (player.id === missile.ownerId)
-                continue;
+            if (player.id === missile.ownerId) continue;
 
             const dist = Math.hypot(
                 player.x - missile.x,
                 player.y - missile.y
             );
 
-            if (
-                dist <
-                player.radius + 12
-            ) {
+            if (dist < player.radius + 12) {
 
                 explodeMissile(
                     io,
-
                     missile,
-
                     missiles,
-
                     players
                 );
 
@@ -242,11 +209,8 @@ export function updateMissiles(
 
             explodeMissile(
                 io,
-
                 missile,
-
                 missiles,
-
                 players
             );
 
