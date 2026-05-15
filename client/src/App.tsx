@@ -82,12 +82,30 @@ export default function App() {
 
   const handlePlay = () => {
 
-    socketRef.current?.emit("joinGame", {
-      name: playerName,
-      skin: selectedSkin,
-    });
+    const socket = socketRef.current;
 
-    setGameState("playing");
+    if (!socket) return;
+
+    if (socket.connected) {
+      socket.emit("joinGame", {
+        name: playerName,
+        skin: selectedSkin,
+      });
+
+      setGameState("playing");
+
+      return;
+    }
+
+    socket.once("connect", () => {
+      socket.emit("joinGame", {
+        name: playerName,
+        skin: selectedSkin,
+      });
+
+      setGameState("playing");
+    }
+    );
   };
 
   const handleReturnHome = () => {
@@ -122,7 +140,6 @@ export default function App() {
     });
 
     return () => {
-
       if (!socketRef.current) return;
 
       socketRef.current.off("playerMovement");
