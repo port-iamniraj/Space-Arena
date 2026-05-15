@@ -133,8 +133,7 @@ export default function App() {
 
         if (
           savedName &&
-          savedSkin &&
-          gameState === "playing"
+          savedSkin
         ) {
 
           socketRef.current?.emit(
