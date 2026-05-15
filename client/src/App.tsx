@@ -187,19 +187,22 @@ export default function App() {
 
   useEffect(() => {
 
+    if (gameState !== "playing") return;
+
     if (!socketRef.current) return;
 
-    const cleanup = registerInputHandlers({
-      socket: socketRef.current,
-      canvasRef,
-      playersRef,
-      mouseRef,
-      keysRef,
-    });
+    const cleanup =
+      registerInputHandlers({
+        socket: socketRef.current,
+        canvasRef,
+        playersRef,
+        mouseRef,
+        keysRef,
+      });
 
     return cleanup;
 
-  }, []);
+  }, [gameState]);
 
   useEffect(() => {
 
