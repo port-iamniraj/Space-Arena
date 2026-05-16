@@ -46,16 +46,18 @@ export function startGameLoop({
 
             payload[id] = {
                 id: p.id,
+                name: p.name,
 
                 x: p.x,
                 y: p.y,
 
                 angle: p.angle,
 
+                radius: p.radius,
+
                 health: p.health,
 
-                shieldTimer:
-                    p.shieldTimer,
+                shieldTimer: p.shieldTimer,
 
                 score: p.score,
 
@@ -64,6 +66,8 @@ export function startGameLoop({
                 isAlive: p.isAlive,
 
                 skin: p.skin,
+
+                upgrades: p.upgrades,
             };
         }
 
