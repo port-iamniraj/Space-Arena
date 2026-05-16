@@ -34,18 +34,20 @@ export function registerSocketEvents({
             const existing = current[id];
 
             if (!existing) {
-                incoming.renderX = incoming.x;
-                incoming.renderY = incoming.y;
-
-                current[id] = incoming;
+                current[id] = {
+                    ...incoming,
+                    renderX: incoming.x,
+                    renderY: incoming.y,
+                };
 
                 continue;
             }
 
-            incoming.renderX = existing.renderX ?? incoming.x;
-            incoming.renderY = existing.renderY ?? incoming.y;
-
-            current[id] = incoming;
+            current[id] = {
+                ...incoming,
+                renderX: existing?.renderX ?? incoming.x,
+                renderY: existing?.renderY ?? incoming.y,
+            };
         }
 
         for (const id in current) {
