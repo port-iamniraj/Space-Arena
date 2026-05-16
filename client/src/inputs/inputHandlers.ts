@@ -61,27 +61,42 @@ export function registerInputHandlers({
 
         const dir = normalize(dx, dy);
 
-        socket.emit("move", dir);
-
         const player = playersRef.current?.[socket.id || ""];
+
+        if (player) {
+            player.x += dir.dx * 15;
+            player.y += dir.dy * 15;
+        }
+
+        socket.emit("move", dir);
 
         if (!player) return;
 
         const { width, height } = getViewport();
-        const { cameraX, cameraY } = getCamera(
-            player.x,
-            player.y,
-            width,
-            height
-        );
+
+        const { cameraX, cameraY } =
+            getCamera(
+                player.x,
+                player.y,
+                width,
+                height
+            );
 
         const worldMouseX = mouseRef.current!.x + cameraX;
         const worldMouseY = mouseRef.current!.y + cameraY;
 
-        const shootDir = normalize(worldMouseX - player.x, worldMouseY - player.y);
+        const shootDir =
+            normalize(
+                worldMouseX - player.x,
+                worldMouseY - player.y
+            );
 
-        socket.emit("shoot", shootDir);
-    }, 50);
+        socket.emit(
+            "shoot",
+            shootDir
+        );
+
+    }, 1000 / 60);
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
