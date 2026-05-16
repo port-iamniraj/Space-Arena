@@ -76,8 +76,8 @@ export function startGameRenderer({
         if (me) {
 
             const cam = getCamera(
-                me.x,
-                me.y,
+                me.renderX ?? me.x,
+                me.renderY ?? me.y,
                 width,
                 height
             );
