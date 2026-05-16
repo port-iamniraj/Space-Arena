@@ -53,45 +53,62 @@ export function registerInputHandlers({
         mouseRef.current!.y = e.clientY - rect.top;
     };
 
+    let lastShootDx = 0;
+    let lastShootDy = 0;
+
     const moveInterval = window.setInterval(() => {
+
         const keys = keysRef.current!;
 
-        let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
-        let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+        const dx =
+            (keys.d ? 1 : 0) -
+            (keys.a ? 1 : 0);
+
+        const dy =
+            (keys.s ? 1 : 0) -
+            (keys.w ? 1 : 0);
 
         const dir = normalize(dx, dy);
 
-        const player = playersRef.current?.[socket.id || ""];
-
         socket.emit("move", dir);
+
+        const player = playersRef.current?.[socket.id || ""];
 
         if (!player) return;
 
         const { width, height } = getViewport();
 
-        const { cameraX, cameraY } =
-            getCamera(
-                player.x,
-                player.y,
-                width,
-                height
-            );
-
-        const worldMouseX = mouseRef.current!.x + cameraX;
-        const worldMouseY = mouseRef.current!.y + cameraY;
-
-        const shootDir =
-            normalize(
-                worldMouseX - player.x,
-                worldMouseY - player.y
-            );
-
-        socket.emit(
-            "shoot",
-            shootDir
+        const { cameraX, cameraY } = getCamera(
+            player.renderX ?? player.x,
+            player.renderY ?? player.y,
+            width,
+            height
         );
 
-    }, 1000 / 60);
+        const worldMouseX =
+            mouseRef.current!.x + cameraX;
+
+        const worldMouseY =
+            mouseRef.current!.y + cameraY;
+
+        const shootDir = normalize(
+            worldMouseX - player.x,
+            worldMouseY - player.y
+        );
+
+        const changed =
+            Math.abs(shootDir.dx - lastShootDx) > 0.01 ||
+            Math.abs(shootDir.dy - lastShootDy) > 0.01;
+
+        if (changed) {
+
+            lastShootDx = shootDir.dx;
+            lastShootDy = shootDir.dy;
+
+            socket.emit("shoot", shootDir);
+        }
+
+    }, 1000 / 30);
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
