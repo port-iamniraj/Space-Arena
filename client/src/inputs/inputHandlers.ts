@@ -63,11 +63,6 @@ export function registerInputHandlers({
 
         const player = playersRef.current?.[socket.id || ""];
 
-        if (player) {
-            player.x += dir.dx * 15;
-            player.y += dir.dy * 15;
-        }
-
         socket.emit("move", dir);
 
         if (!player) return;
