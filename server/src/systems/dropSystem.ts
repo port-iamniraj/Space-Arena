@@ -1,3 +1,5 @@
+import type { Server } from "socket.io";
+
 import { GAME_CONFIG } from "../config/gameConfig";
 
 import type { Drop } from "../types/drop";
@@ -35,6 +37,7 @@ export function spawnDrops(
 }
 
 export function handleDropPickups(
+    io: Server,
     players: Record<string, Player>,
     drops: Record<number, Drop>
 ) {
@@ -86,6 +89,8 @@ export function handleDropPickups(
                 }
 
                 delete drops[id];
+
+                io.emit("updateDrops", drops);
             }
         }
     }

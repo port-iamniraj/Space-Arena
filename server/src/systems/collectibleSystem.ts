@@ -1,3 +1,5 @@
+import type { Server } from "socket.io";
+
 import type { Player } from "../types/player";
 import type { Collectible } from "../types/collectible";
 
@@ -36,6 +38,7 @@ export function spawnCollectibles(
 }
 
 export function handleCollectibles(
+    io: Server,
     players: Record<string, Player>,
     collectibles: Record<number, Collectible>
 ) {
@@ -56,6 +59,8 @@ export function handleCollectibles(
                 player.score += c.value;
                 player.coins += c.value;
                 delete collectibles[id];
+
+                io.emit("updateCollectibles", collectibles);
             }
         }
     }

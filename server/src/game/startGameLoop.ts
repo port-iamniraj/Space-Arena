@@ -64,25 +64,23 @@ export function startGameLoop({
             collectibleIdRef
         );
 
-        handleCollectibles(
-            players,
-            collectibles
-        );
-
-        handleDropPickups(players, drops);
+        handleCollectibles(io, players, collectibles);
+        handleDropPickups(io, players, drops);
 
         io.emit("playerMovement", players);
         io.emit("updateProjectiles", projectiles);
         io.emit("updateMissiles", missiles);
-        io.emit("updateCollectibles", collectibles);
-        io.emit("updateDrops", drops);
     }, GAME_CONFIG.GAME.TICK_RATE);
 
     setInterval(() => {
         spawnCollectibles(collectibles, collectibleIdRef);
+
+        io.emit("updateCollectibles", collectibles);
     }, GAME_CONFIG.GAME.COLLECTIBLE_SPAWN_INTERVAL);
 
     setInterval(() => {
         spawnDrops(drops, dropIdRef);
+
+        io.emit("updateDrops", drops);
     }, GAME_CONFIG.DROP.RESPAWN_INTERVAL);
 }
