@@ -81,9 +81,6 @@ export default function App() {
   });
 
   const handlePlay = () => {
-
-    setGameState("playing");
-
     localStorage.setItem(
       "playerName",
       playerName
@@ -94,13 +91,7 @@ export default function App() {
       selectedSkin
     );
 
-    socketRef.current?.emit(
-      "joinGame",
-      {
-        name: playerName,
-        skin: selectedSkin,
-      }
-    );
+    setGameState("playing");
   };
 
   const handleReturnHome = () => {
