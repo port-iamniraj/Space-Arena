@@ -115,26 +115,20 @@ export default function App() {
         const savedName =
           localStorage.getItem(
             "playerName"
-          );
+          ) || "Player";
 
         const savedSkin =
           localStorage.getItem(
             "selectedSkin"
-          );
+          ) || "default";
 
-        if (
-          savedName &&
-          savedSkin
-        ) {
-
-          socketRef.current?.emit(
-            "joinGame",
-            {
-              name: savedName,
-              skin: savedSkin,
-            }
-          );
-        }
+        socketRef.current?.emit(
+          "joinGame",
+          {
+            name: savedName,
+            skin: savedSkin,
+          }
+        );
       }
     );
 
@@ -147,10 +141,6 @@ export default function App() {
       dropsRef,
       setPlayers,
       setUpgradeConfig,
-    });
-
-    socketRef.current.on("connect", () => {
-      console.log("Connected:", socketRef.current?.id);
     });
 
     socket.on("playerDead", () => {
