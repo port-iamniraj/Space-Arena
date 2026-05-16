@@ -34,6 +34,42 @@ export function startGameLoop({
     dropIdRef,
 }: StartGameLoopParams) {
 
+    function createMovementPayload(
+        players: Record<string, Player>
+    ) {
+
+        const payload: Record<string, any> = {};
+
+        for (const id in players) {
+
+            const p = players[id];
+
+            payload[id] = {
+                id: p.id,
+
+                x: p.x,
+                y: p.y,
+
+                angle: p.angle,
+
+                health: p.health,
+
+                shieldTimer:
+                    p.shieldTimer,
+
+                score: p.score,
+
+                coins: p.coins,
+
+                isAlive: p.isAlive,
+
+                skin: p.skin,
+            };
+        }
+
+        return payload;
+    }
+
     setInterval(() => {
         playerMovement(players);
 
@@ -67,10 +103,13 @@ export function startGameLoop({
         handleCollectibles(io, players, collectibles);
         handleDropPickups(io, players, drops);
 
-        io.emit("playerMovement", players);
+        io.emit("playerMovement", createMovementPayload(players));
+    }, GAME_CONFIG.GAME.TICK_RATE);
+
+    setInterval(() => {
         io.emit("updateProjectiles", projectiles);
         io.emit("updateMissiles", missiles);
-    }, GAME_CONFIG.GAME.TICK_RATE);
+    }, 1000 / 15);
 
     setInterval(() => {
         spawnCollectibles(collectibles, collectibleIdRef);
