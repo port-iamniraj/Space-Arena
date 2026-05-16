@@ -43,7 +43,7 @@ export const GAME_CONFIG = {
     },
 
     GAME: {
-        TICK_RATE: 50,
+        TICK_RATE: 1000 / 30,
         COLLECTIBLE_SPAWN_INTERVAL: 500,
     }
 };
