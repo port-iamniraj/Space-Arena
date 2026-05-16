@@ -29,7 +29,7 @@ export const GAME_CONFIG = {
     },
 
     COLLECTIBLE: {
-        TARGET_COUNT: 1000,
+        TARGET_COUNT: 100,
         DROP_COUNT: 10,
         SIZE_MIN: 3,
         SIZE_MAX: 6,
