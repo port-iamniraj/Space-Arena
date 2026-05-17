@@ -81,14 +81,15 @@ export default function App() {
   });
 
   const handlePlay = () => {
-    localStorage.setItem(
-      "playerName",
-      playerName
-    );
+    localStorage.setItem("playerName", playerName);
+    localStorage.setItem("selectedSkin", selectedSkin);
 
-    localStorage.setItem(
-      "selectedSkin",
-      selectedSkin
+    socketRef.current?.emit(
+      "joinGame",
+      {
+        name: playerName,
+        skin: selectedSkin,
+      }
     );
 
     setGameState("playing");
@@ -102,35 +103,9 @@ export default function App() {
 
     socketRef.current = socket;
 
-    socketRef.current.on(
-      "connect",
-
-      () => {
-
-        console.log(
-          "Connected:",
-          socketRef.current?.id
-        );
-
-        const savedName =
-          localStorage.getItem(
-            "playerName"
-          ) || "Player";
-
-        const savedSkin =
-          localStorage.getItem(
-            "selectedSkin"
-          ) || "default";
-
-        socketRef.current?.emit(
-          "joinGame",
-          {
-            name: savedName,
-            skin: savedSkin,
-          }
-        );
-      }
-    );
+    socketRef.current.on("connect", () => {
+      console.log("Connected:", socketRef.current?.id);
+    });
 
     registerSocketEvents({
       socket: socketRef.current,
