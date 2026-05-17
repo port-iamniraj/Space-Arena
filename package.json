@@ -5,5 +5,8 @@
     "client",
     "server",
     "shared"
-  ]
+  ],
+  "engines": {
+    "node": "20.x"
+  }
 }
