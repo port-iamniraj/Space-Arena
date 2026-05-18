@@ -1,22 +1,47 @@
 # Space Arena
 
-Real-time multiplayer browser arena shooter built with React, TypeScript, Socket.IO, and server-authoritative multiplayer architecture.
+Multiplayer browser arena shooter built with React, TypeScript, Socket.IO, and Canvas API.
+
+Space Arena focuses on realtime multiplayer synchronization, server-authoritative gameplay, and modular game architecture, built entirely from scratch without a game engine.
+
+---
+
+## Preview
 
 ![Gameplay](./assets/gameplay.gif)
 
 ---
 
+## Live Demo
+
+🎮 Play Online: [Space Arena](https://space-arena.vercel.app/)
+
+---
+
 ## Features
 
-- Real-time multiplayer combat
-- Server-authoritative gameplay
-- Missile system
-- Upgrade progression
-- Kill feed
-- Minimap
-- Shared workspace architecture
-- Smooth interpolation rendering
-- Modular game systems
+- Realtime multiplayer arena combat
+- Server-authoritative gameplay architecture
+- Projectile and missile combat systems
+- Upgrade progression and stat scaling
+- Minimap and kill feed systems
+- Modular gameplay and rendering pipelines
+- Shared client/server game contracts
+- Canvas-based rendering system
+- Entity interpolation and synchronization systems
+- Workspace-based monorepo architecture
+
+---
+
+## Architecture Highlights
+
+- Server-authoritative multiplayer architecture
+- Shared game contracts between client and server
+- Modular gameplay and rendering systems
+- Realtime synchronization using Socket.IO
+- Canvas-based rendering without a game engine
+- Workspace-based monorepo structure
+- Event-driven game systems and networking
 
 ---
 
@@ -41,6 +66,28 @@ Real-time multiplayer browser arena shooter built with React, TypeScript, Socket
 - Shared package architecture
 - Modular rendering systems
 - Modular gameplay systems
+
+---
+
+## Engineering Notes
+
+Building realtime multiplayer systems in the browser introduced several networking and synchronization challenges throughout development, including latency handling, websocket bandwidth optimization, interpolation smoothing, and server-authoritative state management.
+
+The current implementation prioritizes synchronized gameplay consistency and modular architecture over aggressive client-side prediction techniques. Future iterations may further explore reconciliation, snapshot buffering, and advanced netcode optimizations.
+
+---
+
+## Technical Challenges
+
+Some of the core challenges during development included:
+
+- Maintaining synchronized multiplayer state across clients
+- Managing websocket bandwidth and update frequency
+- Handling realtime projectile and missile systems
+- Preventing gameplay desynchronization between client and server
+- Designing modular gameplay and rendering pipelines
+- Optimizing rendering performance for large numbers of entities
+- Balancing responsiveness with server-authoritative consistency
 
 ---
 
@@ -93,28 +140,35 @@ npm run dev
 
 ## Contributing
 
-Contributions are welcome.
+Contributions, ideas, and improvements are welcome.
 
-Some areas open for improvement:
-- Sound effects
-- UI polish
-- Mobile controls
-- Performance optimization
-- Visual effects
-- Bug fixes
-- Gameplay improvements
+Some areas currently open for exploration and improvement:
+
+- Sound design and audio feedback
+- UI and gameplay polish
+- Mobile and touch controls
+- Rendering and networking optimization
+- Visual effects and combat feedback
+- Gameplay balancing and progression
+- Netcode and synchronization improvements
+- General bug fixes and system cleanup
+
+If you're interested in realtime multiplayer architecture, browser game development, or networking systems, feel free to explore the project and contribute.
 
 ---
 
 ## Roadmap
 
-- Sound system
-- Mobile support
-- More game modes
-- Better VFX
-- Matchmaking
-- Account system
-- Leaderboard improvements
+Planned areas for future development include:
+
+- Improved combat feedback and sound system
+- Mobile and touch device support
+- Additional weapons and gameplay mechanics
+- Expanded visual effects and UI polish
+- Matchmaking and session management
+- Leaderboards and persistent progression
+- Advanced netcode optimization and prediction systems
+- Additional game modes and arena variations
 
 ---
 
