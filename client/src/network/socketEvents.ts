@@ -13,6 +13,7 @@ type RegisterSocketEventsParams = {
     dropsRef: RefObject<any>;
     setPlayers: React.Dispatch<React.SetStateAction<any>>;
     setUpgradeConfig: React.Dispatch<React.SetStateAction<any>>;
+    setIsConnecting: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function registerSocketEvents({
@@ -24,6 +25,7 @@ export function registerSocketEvents({
     dropsRef,
     setPlayers,
     setUpgradeConfig,
+    setIsConnecting,
 }: RegisterSocketEventsParams) {
 
     socket.on("playerMovement", (serverPlayers) => {
@@ -55,6 +57,10 @@ export function registerSocketEvents({
         }
 
         setPlayers({ ...current });
+
+        if (Object.keys(serverPlayers).length > 0) {
+            setIsConnecting(false);
+        }
     });
 
     socket.on("updateProjectiles", (serverProjectiles) => {

@@ -37,6 +37,7 @@ function getMyPlayer(
 export default function App() {
 
   const [gameState, setGameState] = useState<GameState>("home");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const [playerName, setPlayerName] = useState("");
   const [selectedSkin, setSelectedSkin] = useState("default");
@@ -84,6 +85,8 @@ export default function App() {
     localStorage.setItem("playerName", playerName);
     localStorage.setItem("selectedSkin", selectedSkin);
 
+    setIsConnecting(true);
+
     socketRef.current?.emit(
       "joinGame",
       {
@@ -116,6 +119,7 @@ export default function App() {
       dropsRef,
       setPlayers,
       setUpgradeConfig,
+      setIsConnecting,
     });
 
     socket.on("playerDead", () => {
@@ -216,8 +220,15 @@ export default function App() {
     );
   }
 
+
   return (
     <div className="w-screen h-screen bg-gray-600 overflow-hidden relative">
+
+      {isConnecting && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white text-2xl">
+          Synchronizing arena...
+        </div>
+      )}
 
       {/* Game Arena */}
       <div className="absolute inset-0 overflow-hidden bg-black">
