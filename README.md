@@ -106,7 +106,7 @@ shared/   -> shared configs and types
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/port-iamniraj/Shooter.io.git
+git clone https://github.com/port-iamniraj/Space-Arena.git
 ```
 
 ### 2. Install Dependencies
